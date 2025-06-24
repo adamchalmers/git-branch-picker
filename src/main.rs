@@ -180,7 +180,7 @@ impl App {
     }
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
-            KeyCode::Char('q') => self.exit(),
+            KeyCode::Char('q') | KeyCode::Esc => self.exit(),
             KeyCode::Enter => {
                 self.switch_branch();
                 self.exit();
