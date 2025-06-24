@@ -117,6 +117,7 @@ fn read_branches() -> anyhow::Result<Repo> {
         });
         out_branches.push(Branch { name, last_commit });
     }
+    // TODO: sort branches by date
     let root = repo.path().parent().unwrap().display().to_string();
     let home = std::env::var("HOME");
     let root = if let Ok(home) = home {
