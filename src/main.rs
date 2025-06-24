@@ -59,8 +59,11 @@ fn read_branches() -> anyhow::Result<Vec<Branch>> {
     let mut out_branches = Vec::new();
     for branch in branches {
         let branch = branch?;
-        let n = branch.0.name()?.unwrap();
-        out_branches.push(Branch { name: n.to_owned() });
+        let name = branch.0.name()?.unwrap().to_owned();
+        if name.starts_with("origin/") {
+            continue;
+        }
+        out_branches.push(Branch { name });
     }
     Ok(out_branches)
 }
