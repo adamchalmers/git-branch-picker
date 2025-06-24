@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
@@ -18,7 +20,6 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::INDIGO,
     tailwind::RED,
 ];
-const INFO_TEXT: [&str; 1] = ["G'day"];
 
 fn main() -> Result<()> {
     let branches = read_branches()?;
@@ -30,7 +31,7 @@ fn main() -> Result<()> {
         let Some(i) = app.state.selected() else {
             return Ok(());
         };
-        let branch_name = &app.branches[i].name;
+        let branch_name = &app.repo.branches[i].name;
         let status = std::process::Command::new("git")
             .args(["checkout", branch_name])
             .spawn()?
@@ -53,8 +54,14 @@ impl Branch {
     }
 }
 
-fn read_branches() -> anyhow::Result<Vec<Branch>> {
-    let repo = git2::Repository::open(".")?;
+#[derive(Debug)]
+struct Repo {
+    branches: Vec<Branch>,
+    root: PathBuf,
+}
+
+fn read_branches() -> anyhow::Result<Repo> {
+    let repo = git2::Repository::open_from_env()?;
     let branches = repo.branches(None)?;
     let mut out_branches = Vec::new();
     for branch in branches {
@@ -65,18 +72,22 @@ fn read_branches() -> anyhow::Result<Vec<Branch>> {
         }
         out_branches.push(Branch { name });
     }
-    Ok(out_branches)
+    Ok(Repo {
+        branches: out_branches,
+        root: repo.path().parent().unwrap().to_path_buf(),
+    })
 }
 
 #[derive(Debug)]
 struct App {
-    branches: Vec<Branch>,
+    repo: Repo,
     exit: bool,
     state: TableState,
     scroll_state: ScrollbarState,
     colors: TableColors,
     longest_item_lens: u16, // Make this (u16, u16) when I eventually have more fields
     color_index: usize,
+    /// If true, run the git checkout command when the TUI exits.
     checkout_on_exit: bool,
 }
 
@@ -110,15 +121,15 @@ impl TableColors {
 }
 
 impl App {
-    fn new(branches: Vec<Branch>) -> Result<Self> {
+    fn new(repo: Repo) -> Result<Self> {
         Ok(Self {
             exit: false,
             state: TableState::default().with_selected(0),
-            scroll_state: ScrollbarState::new((branches.len() - 1) * ITEM_HEIGHT),
+            scroll_state: ScrollbarState::new((repo.branches.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&PALETTES[1]),
             color_index: 1,
-            longest_item_lens: constraint_len_calculator(&branches),
-            branches,
+            longest_item_lens: constraint_len_calculator(&repo.branches),
+            repo,
             checkout_on_exit: false,
         })
     }
@@ -186,7 +197,7 @@ impl App {
     fn next_row(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.branches.len() - 1 {
+                if i >= self.repo.branches.len() - 1 {
                     0
                 } else {
                     i + 1
@@ -202,7 +213,7 @@ impl App {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.branches.len() - 1
+                    self.repo.branches.len() - 1
                 } else {
                     i - 1
                 }
@@ -232,7 +243,7 @@ impl App {
             .collect::<Row>()
             .style(header_style)
             .height(1);
-        let rows = self.branches.iter().map(|data| {
+        let rows = self.repo.branches.iter().map(|data| {
             let color = self.colors.normal_row_color;
             let item = data.ref_array();
             item.into_iter()
@@ -276,18 +287,21 @@ impl App {
     }
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
-        let info_footer = Paragraph::new(Text::from_iter(INFO_TEXT))
-            .style(
-                Style::new()
-                    .fg(self.colors.row_fg)
-                    .bg(self.colors.buffer_bg),
-            )
-            .centered()
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Double)
-                    .border_style(Style::new().fg(self.colors.footer_border_color)),
-            );
+        let info_footer = Paragraph::new(Text::from_iter([
+            "Gday".to_owned(),
+            format!("Repo root: {}", self.repo.root.display()),
+        ]))
+        .style(
+            Style::new()
+                .fg(self.colors.row_fg)
+                .bg(self.colors.buffer_bg),
+        )
+        .centered()
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Double)
+                .border_style(Style::new().fg(self.colors.footer_border_color)),
+        );
         frame.render_widget(info_footer, area);
     }
 }
