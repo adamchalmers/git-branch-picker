@@ -11,7 +11,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-const ITEM_HEIGHT: usize = 3;
+const ITEM_HEIGHT: usize = 1;
 const PALETTES: [tailwind::Palette; 4] = [
     tailwind::BLUE,
     tailwind::EMERALD,
@@ -239,7 +239,7 @@ impl App {
             };
             let item = data.ref_array();
             item.into_iter()
-                .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
+                .map(|content| Cell::from(Text::from(content.to_owned())))
                 .collect::<Row>()
                 .style(Style::new().fg(self.colors.row_fg).bg(color))
                 .height(ITEM_HEIGHT.try_into().unwrap())
@@ -258,7 +258,7 @@ impl App {
         .row_highlight_style(selected_row_style)
         .column_highlight_style(selected_col_style)
         .cell_highlight_style(selected_cell_style)
-        .highlight_symbol(Text::from(vec!["".into(), bar.into(), "".into()]))
+        .highlight_symbol(Text::from(vec![bar.into()]))
         .bg(self.colors.buffer_bg)
         .highlight_spacing(HighlightSpacing::Always);
         frame.render_stateful_widget(t, area, &mut self.state);
