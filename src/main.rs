@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
@@ -57,7 +55,7 @@ impl Branch {
 #[derive(Debug)]
 struct Repo {
     branches: Vec<Branch>,
-    root: PathBuf,
+    root: String,
 }
 
 fn read_branches() -> anyhow::Result<Repo> {
@@ -72,9 +70,20 @@ fn read_branches() -> anyhow::Result<Repo> {
         }
         out_branches.push(Branch { name });
     }
+    let root = repo.path().parent().unwrap().display().to_string();
+    let home = std::env::var("HOME");
+    let root = if let Ok(home) = home {
+        if let Some(relative_to_homedir) = root.strip_prefix(&home) {
+            format!("~{relative_to_homedir}")
+        } else {
+            root
+        }
+    } else {
+        root
+    };
     Ok(Repo {
         branches: out_branches,
-        root: repo.path().parent().unwrap().to_path_buf(),
+        root,
     })
 }
 
@@ -289,7 +298,7 @@ impl App {
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let info_footer = Paragraph::new(Text::from_iter([
             "Gday".to_owned(),
-            format!("Repo root: {}", self.repo.root.display()),
+            format!("Repo: {}", self.repo.root),
         ]))
         .style(
             Style::new()
