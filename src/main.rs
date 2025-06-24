@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use git2::BranchType;
 use ratatui::{
     layout::{Constraint, Layout, Margin, Rect},
     style::{palette::tailwind, Color, Modifier, Style, Stylize},
@@ -44,11 +45,28 @@ fn main() -> Result<()> {
 #[derive(Debug)]
 struct Branch {
     name: String,
+    last_commit: Option<Commit>,
+}
+
+#[derive(Debug)]
+struct Commit {
+    msg: String,
+    time: String,
 }
 
 impl Branch {
-    const fn ref_array(&self) -> [&String; 1] {
-        [&self.name]
+    fn ref_array(&self) -> [String; 3] {
+        let msg = self
+            .last_commit
+            .as_ref()
+            .map(|c| c.msg.clone())
+            .unwrap_or_default();
+        let time = self
+            .last_commit
+            .as_ref()
+            .map(|c| c.time.clone())
+            .unwrap_or_default();
+        [self.name.clone(), msg, time]
     }
 }
 
@@ -58,17 +76,46 @@ struct Repo {
     root: String,
 }
 
+const TIME_PRINTER: jiff::fmt::friendly::SpanPrinter = jiff::fmt::friendly::SpanPrinter::new()
+    .spacing(jiff::fmt::friendly::Spacing::BetweenUnitsAndDesignators)
+    .comma_after_designator(true)
+    .designator(jiff::fmt::friendly::Designator::Verbose);
+
+fn human_friendly_time_since(t: git2::Time) -> Result<String> {
+    let committed_at = jiff::Timestamp::from_second(t.seconds())?;
+    let committed_at = committed_at.in_tz("UTC")?.datetime();
+    let now = jiff::Zoned::now().datetime();
+    let since_commit = (now - committed_at).round(
+        jiff::SpanRound::new()
+            .smallest(jiff::Unit::Minute)
+            .days_are_24_hours(),
+    )?;
+
+    Ok(TIME_PRINTER.span_to_string(&-since_commit))
+}
+
 fn read_branches() -> anyhow::Result<Repo> {
     let repo = git2::Repository::open_from_env()?;
     let branches = repo.branches(None)?;
     let mut out_branches = Vec::new();
     for branch in branches {
-        let branch = branch?;
-        let name = branch.0.name()?.unwrap().to_owned();
-        if name.starts_with("origin/") {
+        let (branch, branch_type) = branch?;
+        if branch_type == BranchType::Remote {
             continue;
         }
-        out_branches.push(Branch { name });
+        let name = branch.name()?.unwrap().to_owned();
+        let git_ref = branch.get();
+        let git_commit = git_ref.peel_to_commit().ok();
+        let last_commit = git_commit.map(|c| {
+            let human_friendly = human_friendly_time_since(c.time()).unwrap();
+            let msg = c.message().unwrap_or("<empty>").to_owned();
+            let msg = msg.lines().next().unwrap().to_owned();
+            Commit {
+                time: human_friendly,
+                msg,
+            }
+        });
+        out_branches.push(Branch { name, last_commit });
     }
     let root = repo.path().parent().unwrap().display().to_string();
     let home = std::env::var("HOME");
@@ -94,7 +141,7 @@ struct App {
     state: TableState,
     scroll_state: ScrollbarState,
     colors: TableColors,
-    longest_item_lens: u16, // Make this (u16, u16) when I eventually have more fields
+    longest_item_lens: (u16, u16, u16),
     color_index: usize,
     /// If true, run the git checkout command when the TUI exits.
     checkout_on_exit: bool,
@@ -245,8 +292,7 @@ impl App {
             .add_modifier(Modifier::REVERSED)
             .fg(self.colors.selected_cell_style_fg);
 
-        let header = ["Name"]
-            // let header = ["Name", "Address", "Email"]
+        let header = ["Name", "Last commit msg", "Last commit date"]
             .into_iter()
             .map(Cell::from)
             .collect::<Row>()
@@ -266,9 +312,9 @@ impl App {
             rows,
             [
                 // + 1 is for padding.
-                Constraint::Length(self.longest_item_lens + 1),
-                // Constraint::Min(self.longest_item_lens.1 + 1),
-                // Constraint::Min(self.longest_item_lens.2),
+                Constraint::Length(self.longest_item_lens.0 + 1),
+                Constraint::Min(self.longest_item_lens.1 + 1),
+                Constraint::Min(self.longest_item_lens.2),
             ],
         )
         .header(header)
@@ -315,12 +361,32 @@ impl App {
     }
 }
 
-fn constraint_len_calculator(items: &[Branch]) -> u16 {
+fn constraint_len_calculator(items: &[Branch]) -> (u16, u16, u16) {
     let name_len = items
         .iter()
         .map(|b| b.name.chars().count())
         .max()
         .unwrap_or(0);
+    let msg_len = items
+        .iter()
+        .map(|b| {
+            b.last_commit
+                .as_ref()
+                .map(|c| c.msg.chars().count())
+                .unwrap_or_default()
+        })
+        .max()
+        .unwrap_or(0);
+    let date_len = items
+        .iter()
+        .map(|b| {
+            b.last_commit
+                .as_ref()
+                .map(|c| c.time.chars().count())
+                .unwrap_or_default()
+        })
+        .max()
+        .unwrap_or(0);
 
-    name_len as u16
+    (name_len as u16, msg_len as u16, date_len as u16)
 }
