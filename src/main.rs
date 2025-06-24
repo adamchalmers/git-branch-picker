@@ -82,7 +82,8 @@ const TIME_PRINTER: jiff::fmt::friendly::SpanPrinter = jiff::fmt::friendly::Span
     .designator(jiff::fmt::friendly::Designator::Verbose);
 
 fn human_friendly_time_since(t: git2::Time) -> Result<String> {
-    let committed_at = jiff::Timestamp::from_second(t.seconds())?;
+    let committed_at =
+        jiff::Timestamp::from_second(t.seconds() + ((t.offset_minutes() as i64) * 60))?;
     let committed_at = committed_at.in_tz("UTC")?.datetime();
     let now = jiff::Zoned::now().datetime();
     let since_commit = (now - committed_at).round(
