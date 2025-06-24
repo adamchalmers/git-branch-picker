@@ -24,10 +24,22 @@ fn main() -> Result<()> {
     let branches = read_branches()?;
     let mut terminal = ratatui::init();
     let mut app = App::new(branches)?;
-    let app_result = app.run(&mut terminal);
+    app.run(&mut terminal)?;
     ratatui::restore();
-    println!("{:#?}", app);
-    app_result
+    if app.checkout_on_exit {
+        let Some(i) = app.state.selected() else {
+            return Ok(());
+        };
+        let branch_name = &app.branches[i].name;
+        let status = std::process::Command::new("git")
+            .args(["checkout", branch_name])
+            .spawn()?
+            .wait()?;
+        if !status.success() {
+            anyhow::bail!("git checkout failed, status was {status}");
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -47,7 +59,7 @@ fn read_branches() -> anyhow::Result<Vec<Branch>> {
     let mut out_branches = Vec::new();
     for branch in branches {
         let branch = branch?;
-        let n = branch.0.name().unwrap().unwrap();
+        let n = branch.0.name()?.unwrap();
         out_branches.push(Branch { name: n.to_owned() });
     }
     Ok(out_branches)
