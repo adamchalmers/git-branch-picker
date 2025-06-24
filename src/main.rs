@@ -82,7 +82,8 @@ const TIME_PRINTER: jiff::fmt::friendly::SpanPrinter = jiff::fmt::friendly::Span
     .designator(jiff::fmt::friendly::Designator::Verbose);
 
 fn human_friendly_time_since(t: git2::Time) -> Result<String> {
-    let committed_at = jiff::Timestamp::from_second(t.seconds())?;
+    let committed_at =
+        jiff::Timestamp::from_second(t.seconds() + ((t.offset_minutes() as i64) * 60))?;
     let committed_at = committed_at.in_tz("UTC")?.datetime();
     let now = jiff::Zoned::now().datetime();
     let since_commit = (now - committed_at).round(
@@ -110,13 +111,25 @@ fn read_branches() -> anyhow::Result<Repo> {
             let human_friendly = human_friendly_time_since(c.time()).unwrap();
             let msg = c.message().unwrap_or("<empty>").to_owned();
             let msg = msg.lines().next().unwrap().to_owned();
-            Commit {
-                time: human_friendly,
-                msg,
-            }
+            (
+                Commit {
+                    time: human_friendly,
+                    msg,
+                },
+                c.time(),
+            )
         });
-        out_branches.push(Branch { name, last_commit });
+        out_branches.push((
+            last_commit.as_ref().map(|lc| lc.1),
+            Branch {
+                name,
+                last_commit: last_commit.map(|lc| lc.0),
+            },
+        ));
     }
+    out_branches.sort_by(|x, y| x.0.cmp(&y.0).reverse());
+    let out_branches = out_branches.into_iter().map(|x| x.1).collect();
+
     let root = repo.path().parent().unwrap().display().to_string();
     let home = std::env::var("HOME");
     let root = if let Ok(home) = home {
