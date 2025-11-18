@@ -20,6 +20,8 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::RED,
 ];
 
+const SPECIAL_BRANCHES: [&str; 1] = ["main"];
+
 fn main() -> Result<()> {
     let branches = read_branches()?;
     let mut terminal = ratatui::init();
@@ -170,6 +172,7 @@ struct TableColors {
     selected_column_style_fg: Color,
     selected_cell_style_fg: Color,
     normal_row_color: Color,
+    unusual_row_color: Color,
     footer_border_color: Color,
 }
 
@@ -184,6 +187,7 @@ impl TableColors {
             selected_column_style_fg: color.c400,
             selected_cell_style_fg: color.c600,
             normal_row_color: tailwind::SLATE.c950,
+            unusual_row_color: tailwind::SLATE.c800,
             footer_border_color: color.c400,
         }
     }
@@ -312,10 +316,18 @@ impl App {
             .style(header_style)
             .height(1);
         let rows = self.repo.branches.iter().map(|data| {
-            let color = self.colors.normal_row_color;
+            let is_special_branch = SPECIAL_BRANCHES.contains(&data.name.as_str());
+            let color = if is_special_branch {
+                self.colors.unusual_row_color
+            } else {
+                self.colors.normal_row_color
+            };
             let item = data.ref_array();
             item.into_iter()
-                .map(|content| Cell::from(Text::from(content.to_owned())))
+                .map(|content| {
+                    let text = Text::from(content.to_owned());
+                    Cell::from(text)
+                })
                 .collect::<Row>()
                 .style(Style::new().fg(self.colors.row_fg).bg(color))
                 .height(ITEM_HEIGHT.try_into().unwrap())
@@ -326,8 +338,8 @@ impl App {
             [
                 // + 1 is for padding.
                 Constraint::Length(self.longest_item_lens.name + 1),
-                Constraint::Min(self.longest_item_lens.msg + 1),
-                Constraint::Min(self.longest_item_lens.date),
+                Constraint::Max(self.longest_item_lens.msg + 1),
+                Constraint::Fill(self.longest_item_lens.date),
             ],
         )
         .header(header)
@@ -393,7 +405,7 @@ impl ConstraintSizes {
             .map(|b| {
                 b.last_commit
                     .as_ref()
-                    .map(|c| c.msg.chars().count())
+                    .map(|c| c.msg.lines().next().unwrap().chars().count())
                     .unwrap_or_default()
             })
             .max()
