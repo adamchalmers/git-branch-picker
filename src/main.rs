@@ -33,7 +33,7 @@ fn main() -> Result<()> {
     let mut app = App::new(branches)?;
     app.run(&mut terminal)?;
     ratatui::restore();
-    if app.checkout_on_exit {
+    if app.user_switched_branch {
         let Some(i) = app.state.selected() else {
             return Ok(());
         };
@@ -170,7 +170,7 @@ struct App {
     longest_item_lens: ConstraintSizes,
     color_index: usize,
     /// If true, run the git checkout command when the TUI exits.
-    checkout_on_exit: bool,
+    user_switched_branch: bool,
 }
 
 #[derive(Debug)]
@@ -214,7 +214,7 @@ impl App {
             color_index: 1,
             longest_item_lens: ConstraintSizes::calculate(&repo.branches),
             repo,
-            checkout_on_exit: false,
+            user_switched_branch: false,
         })
     }
 
@@ -275,7 +275,7 @@ impl App {
     }
 
     fn switch_branch(&mut self) {
-        self.checkout_on_exit = true;
+        self.user_switched_branch = true;
     }
 
     fn next_row(&mut self) {
