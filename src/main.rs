@@ -325,7 +325,7 @@ impl App {
             let item = data.ref_array();
             item.into_iter()
                 .map(|content| {
-                    let text = Text::from(content.to_owned());
+                    let text = Text::from(content);
                     Cell::from(text)
                 })
                 .collect::<Row>()
