@@ -21,7 +21,7 @@ const PALETTES: [tailwind::Palette; 4] = [
 ];
 
 /// Will be styled differently in the branch picker.
-const SPECIAL_BRANCHES: [&str; 1] = ["main"];
+const SPECIAL_BRANCHES: [&str; 2] = ["main", "master"];
 
 /// Branch names often have prefixes,
 /// which can be shortened for this picker.
