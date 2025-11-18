@@ -154,7 +154,7 @@ struct App {
     state: TableState,
     scroll_state: ScrollbarState,
     colors: TableColors,
-    longest_item_lens: (u16, u16, u16),
+    longest_item_lens: ConstraintSizes,
     color_index: usize,
     /// If true, run the git checkout command when the TUI exits.
     checkout_on_exit: bool,
@@ -197,7 +197,7 @@ impl App {
             scroll_state: ScrollbarState::new((repo.branches.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&PALETTES[1]),
             color_index: 1,
-            longest_item_lens: constraint_len_calculator(&repo.branches),
+            longest_item_lens: ConstraintSizes::calculate(&repo.branches),
             repo,
             checkout_on_exit: false,
         })
@@ -325,9 +325,9 @@ impl App {
             rows,
             [
                 // + 1 is for padding.
-                Constraint::Length(self.longest_item_lens.0 + 1),
-                Constraint::Min(self.longest_item_lens.1 + 1),
-                Constraint::Min(self.longest_item_lens.2),
+                Constraint::Length(self.longest_item_lens.name + 1),
+                Constraint::Min(self.longest_item_lens.msg + 1),
+                Constraint::Min(self.longest_item_lens.date),
             ],
         )
         .header(header)
@@ -374,32 +374,45 @@ impl App {
     }
 }
 
-fn constraint_len_calculator(items: &[Branch]) -> (u16, u16, u16) {
-    let name_len = items
-        .iter()
-        .map(|b| b.name.chars().count())
-        .max()
-        .unwrap_or(0);
-    let msg_len = items
-        .iter()
-        .map(|b| {
-            b.last_commit
-                .as_ref()
-                .map(|c| c.msg.chars().count())
-                .unwrap_or_default()
-        })
-        .max()
-        .unwrap_or(0);
-    let date_len = items
-        .iter()
-        .map(|b| {
-            b.last_commit
-                .as_ref()
-                .map(|c| c.time.chars().count())
-                .unwrap_or_default()
-        })
-        .max()
-        .unwrap_or(0);
+#[derive(Debug, Clone, Copy)]
+struct ConstraintSizes {
+    name: u16,
+    msg: u16,
+    date: u16,
+}
 
-    (name_len as u16, msg_len as u16, date_len as u16)
+impl ConstraintSizes {
+    fn calculate(items: &[Branch]) -> Self {
+        let name_len = items
+            .iter()
+            .map(|b| b.name.chars().count())
+            .max()
+            .unwrap_or(0);
+        let msg_len = items
+            .iter()
+            .map(|b| {
+                b.last_commit
+                    .as_ref()
+                    .map(|c| c.msg.chars().count())
+                    .unwrap_or_default()
+            })
+            .max()
+            .unwrap_or(0);
+        let date_len = items
+            .iter()
+            .map(|b| {
+                b.last_commit
+                    .as_ref()
+                    .map(|c| c.time.chars().count())
+                    .unwrap_or_default()
+            })
+            .max()
+            .unwrap_or(0);
+
+        Self {
+            name: name_len as u16,
+            msg: msg_len as u16,
+            date: date_len as u16,
+        }
+    }
 }
