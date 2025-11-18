@@ -37,9 +37,12 @@ fn main() -> Result<()> {
         let Some(i) = app.state.selected() else {
             return Ok(());
         };
-        let branch_name = &app.repo.branches[i].name;
+        let mut branch_name = app.repo.branches[i].name.to_owned();
+        for (repl_from, repl_to) in BRANCH_NAME_REPLACEMENTS {
+            branch_name = branch_name.replace(repl_to, repl_from);
+        }
         let status = std::process::Command::new("git")
-            .args(["checkout", branch_name])
+            .args(["checkout", &branch_name])
             .spawn()?
             .wait()?;
         if !status.success() {
