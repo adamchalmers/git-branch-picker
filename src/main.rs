@@ -20,7 +20,12 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::RED,
 ];
 
+/// Will be styled differently in the branch picker.
 const SPECIAL_BRANCHES: [&str; 1] = ["main"];
+
+/// Branch names often have prefixes,
+/// which can be shortened for this picker.
+const BRANCH_NAME_REPLACEMENTS: [(&str, &str); 2] = [("achalmers/", "ac/"), ("release/", "rel/")];
 
 fn main() -> Result<()> {
     let branches = read_branches()?;
@@ -106,7 +111,10 @@ fn read_branches() -> anyhow::Result<Repo> {
         if branch_type == BranchType::Remote {
             continue;
         }
-        let name = branch.name()?.unwrap().to_owned();
+        let mut name = branch.name()?.unwrap().to_owned();
+        for (repl_from, repl_to) in BRANCH_NAME_REPLACEMENTS {
+            name = name.replace(repl_from, repl_to);
+        }
         let git_ref = branch.get();
         let git_commit = git_ref.peel_to_commit().ok();
         let last_commit = git_commit.map(|c| {
