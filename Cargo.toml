@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.95"
 crossterm = "0.29.0"
-git2 = "0.20.0"
+git2 = "0.21.0"
 jiff = "0.2.15"
 ratatui = "0.30.0"
