@@ -65,18 +65,18 @@ struct Commit {
 }
 
 impl Branch {
-    fn ref_array(&self) -> [String; 3] {
-        let msg = self
-            .last_commit
+    fn commit_msg(&self) -> String {
+        self.last_commit
             .as_ref()
             .map(|c| c.msg.clone())
-            .unwrap_or_default();
-        let time = self
-            .last_commit
+            .unwrap_or_default()
+    }
+
+    fn time_msg(&self) -> String {
+        self.last_commit
             .as_ref()
             .map(|c| c.time.clone())
-            .unwrap_or_default();
-        [self.name.clone(), msg, time]
+            .unwrap_or_default()
     }
 }
 
@@ -387,13 +387,15 @@ impl App {
             } else {
                 self.colors.normal_row_color
             };
-            let item = data.ref_array();
-            let rows = item
+            let branch_name = data.name.clone();
+            let commit_msg = data.commit_msg();
+            let time_msg = data.time_msg();
+            let branch_cell = Cell::from(Text::from(branch_name));
+            let commit_cell = Cell::from(Text::from(commit_msg));
+            let time_cell = Cell::from(Text::from(time_msg));
+
+            let rows = [branch_cell, commit_cell, time_cell]
                 .into_iter()
-                .map(|content| {
-                    let text = Text::from(content);
-                    Cell::from(text)
-                })
                 .collect::<Row>()
                 .style(Style::new().fg(self.colors.row_fg).bg(color))
                 .height(ITEM_HEIGHT.try_into().unwrap());
