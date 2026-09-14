@@ -96,9 +96,20 @@ fn human_friendly_time_since(t: git2::Time) -> Result<String> {
         jiff::Timestamp::from_second(t.seconds() + ((t.offset_minutes() as i64) * 60))?;
     let committed_at = committed_at.in_tz("UTC")?.datetime();
     let now = jiff::Zoned::now().datetime();
-    let since_commit = (now - committed_at).round(
+    let exact_since_commit = now - committed_at;
+
+    // If it's been more than 5 days since the last commit,
+    // then I probably don't care about how many hours/minutes it's been.
+    // If it's less than 5 days, then sure, show the minutes/hours.
+    let has_been_days = exact_since_commit.get_days().abs() > 5;
+    let smallest = if has_been_days {
+        jiff::Unit::Day
+    } else {
+        jiff::Unit::Minute
+    };
+    let since_commit = (exact_since_commit).round(
         jiff::SpanRound::new()
-            .smallest(jiff::Unit::Minute)
+            .smallest(smallest)
             .days_are_24_hours(),
     )?;
 
@@ -427,8 +438,7 @@ impl App {
             if self.search_filter_active {
                 format!(
                     "Search: {}",
-                    self.search_filter.as_deref()
-                        .unwrap_or_default()
+                    self.search_filter.as_deref().unwrap_or_default()
                 )
             } else {
                 "Normal".to_owned()
