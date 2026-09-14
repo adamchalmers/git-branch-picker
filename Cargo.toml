@@ -1,7 +1,9 @@
 [package]
 name = "git-branch-picker"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+description = "A small TUI for viewing and switching git branches"
+repository = "https://github.com/adamchalmers/git-branch-picker"
 
 [dependencies]
 anyhow = "1.0.95"

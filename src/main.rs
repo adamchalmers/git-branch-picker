@@ -2,14 +2,14 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use git2::BranchType;
 use ratatui::{
+    DefaultTerminal, Frame,
     layout::{Constraint, Layout, Margin, Rect},
-    style::{palette::tailwind, Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style, Stylize, palette::tailwind},
     text::Text,
     widgets::{
         Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Scrollbar, ScrollbarOrientation,
         ScrollbarState, Table, TableState,
     },
-    DefaultTerminal, Frame,
 };
 
 const ITEM_HEIGHT: usize = 1;
@@ -171,6 +171,8 @@ struct App {
     color_index: usize,
     /// If true, run the git checkout command when the TUI exits.
     user_switched_branch: bool,
+    search_filter: Option<String>,
+    search_filter_active: bool,
 }
 
 #[derive(Debug)]
@@ -215,6 +217,8 @@ impl App {
             longest_item_lens: ConstraintSizes::calculate(&repo.branches),
             repo,
             user_switched_branch: false,
+            search_filter: None,
+            search_filter_active: false,
         })
     }
 
@@ -253,20 +257,54 @@ impl App {
         };
         Ok(())
     }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') | KeyCode::Esc => self.exit(),
-            KeyCode::Enter => {
-                self.switch_branch();
-                self.exit();
+        if self.search_filter_active {
+            match key_event.code {
+                KeyCode::Enter => {
+                    self.search_filter_active = false;
+                }
+                KeyCode::Esc => {
+                    self.search_filter = None;
+                    self.search_filter_active = false;
+                }
+                KeyCode::Backspace => {
+                    let mut search_term = self.search_filter.take().unwrap_or_default();
+                    search_term.pop();
+                    self.search_filter = Some(search_term);
+                }
+                KeyCode::Char(ch) => {
+                    let mut search_term = self.search_filter.take().unwrap_or_default();
+                    search_term.push(ch);
+                    self.search_filter = Some(search_term);
+                }
+                _ => {}
             }
-            KeyCode::Left | KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('h') => {
-                self.prev_row()
+        } else {
+            match key_event.code {
+                KeyCode::Char('q') => self.exit(),
+                KeyCode::Esc => {
+                    if self.search_filter_active {
+                        self.search_filter_active = false;
+                    } else {
+                        self.exit()
+                    }
+                }
+                KeyCode::Enter => {
+                    self.switch_branch();
+                    self.exit();
+                }
+                KeyCode::Char('/') if !self.search_filter_active => {
+                    self.search_filter_active = true;
+                }
+                KeyCode::Left | KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('h') => {
+                    self.prev_row()
+                }
+                KeyCode::Right | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('l') => {
+                    self.next_row()
+                }
+                _ => {}
             }
-            KeyCode::Right | KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('l') => {
-                self.next_row()
-            }
-            _ => {}
         }
     }
 
@@ -326,7 +364,12 @@ impl App {
             .collect::<Row>()
             .style(header_style)
             .height(1);
-        let rows = self.repo.branches.iter().map(|data| {
+        let rows = self.repo.branches.iter().filter_map(|data| {
+            if let Some(ref filter) = self.search_filter
+                && !data.name.contains(filter)
+            {
+                return None;
+            }
             let is_special_branch = SPECIAL_BRANCHES.contains(&data.name.as_str());
             let color = if is_special_branch {
                 self.colors.unusual_row_color
@@ -334,14 +377,16 @@ impl App {
                 self.colors.normal_row_color
             };
             let item = data.ref_array();
-            item.into_iter()
+            let rows = item
+                .into_iter()
                 .map(|content| {
                     let text = Text::from(content);
                     Cell::from(text)
                 })
                 .collect::<Row>()
                 .style(Style::new().fg(self.colors.row_fg).bg(color))
-                .height(ITEM_HEIGHT.try_into().unwrap())
+                .height(ITEM_HEIGHT.try_into().unwrap());
+            Some(rows)
         });
         let bar = " > ";
         let t = Table::new(
@@ -379,7 +424,15 @@ impl App {
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let info_footer = Paragraph::new(Text::from_iter([
-            "Gday".to_owned(),
+            if self.search_filter_active {
+                format!(
+                    "Search: {}",
+                    self.search_filter.as_deref()
+                        .unwrap_or_default()
+                )
+            } else {
+                "Normal".to_owned()
+            },
             format!("Repo: {}", self.repo.root),
         ]))
         .style(
