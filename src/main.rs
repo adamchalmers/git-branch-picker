@@ -440,6 +440,8 @@ impl App {
                     "Search: {}",
                     self.search_filter.as_deref().unwrap_or_default()
                 )
+            } else if let Some(ref s) = self.search_filter {
+                format!("Normal (filter: '{}')", s).to_owned()
             } else {
                 "Normal".to_owned()
             },
