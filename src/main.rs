@@ -5,7 +5,7 @@ use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout, Margin, Rect},
     style::{Color, Modifier, Style, Stylize, palette::tailwind},
-    text::Text,
+    text::{Line, Span, Text},
     widgets::{
         Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Scrollbar, ScrollbarOrientation,
         ScrollbarState, Table, TableState,
@@ -390,7 +390,32 @@ impl App {
             let branch_name = data.name.clone();
             let commit_msg = data.commit_msg();
             let time_msg = data.time_msg();
-            let branch_cell = Cell::from(Text::from(branch_name));
+
+            // Make the filter string stand out,
+            // if it appears in this branch's name.
+            let branch_cell = if let Some(ref s) = self.search_filter
+                && let Some(i) = branch_name.find(s)
+            {
+                let j = i + s.len();
+                let spans = vec![
+                    // String before the filter match
+                    Span::raw(branch_name[..i].to_string()),
+                    // The filter match
+                    Span::styled(
+                        branch_name[i..j].to_string(),
+                        Style::default()
+                            .add_modifier(Modifier::BOLD)
+                            .add_modifier(Modifier::UNDERLINED)
+                            .add_modifier(Modifier::REVERSED)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                    // Rest of string, after the filter match.
+                    branch_name[j..].to_string().into(),
+                ];
+                Cell::from(Line::from(spans))
+            } else {
+                Cell::from(Text::from(branch_name))
+            };
             let commit_cell = Cell::from(Text::from(commit_msg));
             let time_cell = Cell::from(Text::from(time_msg));
 
