@@ -376,12 +376,12 @@ impl App {
             .style(header_style)
             .height(1);
         let rows = self.repo.branches.iter().map(|data| {
-            let mut filtered_out = false;
-            if let Some(ref filter) = self.search_filter
-                && !data.name.contains(filter)
-            {
-                filtered_out = true;
-            }
+            // let mut filtered_out = false;
+            // if let Some(ref filter) = self.search_filter
+            //     && !data.name.contains(filter)
+            // {
+            //     filtered_out = true;
+            // }
             let is_special_branch = SPECIAL_BRANCHES.contains(&data.name.as_str());
             let color = if is_special_branch {
                 self.colors.unusual_row_color
@@ -425,6 +425,7 @@ impl App {
                 .collect::<Row>()
                 .style(Style::new().fg(self.colors.row_fg).bg(color))
                 .height(ITEM_HEIGHT.try_into().unwrap());
+            #[expect(clippy::let_and_return)]
             rows
         });
         let bar = " > ";
